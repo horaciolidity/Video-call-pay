@@ -190,19 +190,52 @@ apiRouter.post('/auth/verify-age', (req: Request, res: Response) => {
 // -------------------------------------------------------------
 apiRouter.get('/marketplace/providers', (req: Request, res: Response) => {
   const { search, category, status, country, minPrice, maxPrice, sortBy } = req.query;
+  const currentUser = getAuthenticatedUser(req);
 
   let providers = db.getUsers().filter(u => u.role === 'prestador' && !u.isBanned && !u.isSuspended);
 
-  // Search by name, alias, bio
+  // Apply two-way country exclusions if authenticated user is viewing
+  if (currentUser) {
+    // 1. Hide providers who excluded the current viewer's country from seeing their profile
+    providers = providers.filter(p => {
+      if (p.excludedCountriesFromSeeingMe && p.excludedCountriesFromSeeingMe.includes(currentUser.country)) {
+        return false;
+      }
+      return true;
+    });
+
+    // 2. Hide providers from countries the current user has configured to NOT see
+    if (currentUser.excludedCountriesToSee && currentUser.excludedCountriesToSee.length > 0) {
+      providers = providers.filter(p => !currentUser.excludedCountriesToSee?.includes(p.country));
+    }
+
+    // 3. If current user set preferred countries to see, only show those
+    if (currentUser.preferredCountriesToSee && currentUser.preferredCountriesToSee.length > 0) {
+      providers = providers.filter(p => currentUser.preferredCountriesToSee?.includes(p.country));
+    }
+  }
+
+  // Search by name, alias, bio, country, or smart preset keywords
   if (search && typeof search === 'string' && search.trim()) {
     const q = search.toLowerCase().trim();
-    providers = providers.filter(
-      p =>
-        p.name.toLowerCase().includes(q) ||
-        p.alias.toLowerCase().includes(q) ||
-        p.bio.toLowerCase().includes(q) ||
-        p.categories.some(c => c.toLowerCase().includes(q))
-    );
+    if (q === 'popular') {
+      providers = providers.filter(p => p.isFeatured || p.rating >= 4.9);
+    } else if (q === 'new') {
+      providers = [...providers].reverse();
+    } else if (q === 'highest rated' || q === 'highest_rated' || q === 'top rated') {
+      providers = providers.filter(p => p.rating >= 4.9);
+    } else if (q === 'online' || q === 'online ahora' || q === 'disponible') {
+      providers = providers.filter(p => p.status === 'disponible');
+    } else {
+      providers = providers.filter(
+        p =>
+          p.name.toLowerCase().includes(q) ||
+          p.alias.toLowerCase().includes(q) ||
+          p.bio.toLowerCase().includes(q) ||
+          p.country.toLowerCase().includes(q) ||
+          p.categories.some(c => c.toLowerCase().includes(q))
+      );
+    }
   }
 
   // Category filter
@@ -215,7 +248,7 @@ apiRouter.get('/marketplace/providers', (req: Request, res: Response) => {
     providers = providers.filter(p => p.status === status);
   }
 
-  // Country filter
+  // Explicit Country query filter
   if (country && typeof country === 'string' && country !== 'all') {
     providers = providers.filter(p => p.country.toLowerCase() === country.toLowerCase());
   }
@@ -303,7 +336,20 @@ apiRouter.put('/user/profile', (req: Request, res: Response) => {
   const user = getAuthenticatedUser(req);
   if (!user) return res.status(401).json({ error: 'No autorizado' });
 
-  const { name, alias, bio, country, city, languages, status, categories, avatar } = req.body;
+  const {
+    name,
+    alias,
+    bio,
+    country,
+    city,
+    languages,
+    status,
+    categories,
+    avatar,
+    excludedCountriesFromSeeingMe,
+    excludedCountriesToSee,
+    preferredCountriesToSee,
+  } = req.body;
 
   // Protect against changing administrative role
   const updates: Partial<User> = {};
@@ -317,6 +363,37 @@ apiRouter.put('/user/profile', (req: Request, res: Response) => {
   if (Array.isArray(categories)) updates.categories = categories;
   if (status && ['disponible', 'ocupado', 'desconectado'].includes(status)) {
     updates.status = status;
+  }
+  if (Array.isArray(excludedCountriesFromSeeingMe)) {
+    updates.excludedCountriesFromSeeingMe = excludedCountriesFromSeeingMe;
+  }
+  if (Array.isArray(excludedCountriesToSee)) {
+    updates.excludedCountriesToSee = excludedCountriesToSee;
+  }
+  if (Array.isArray(preferredCountriesToSee)) {
+    updates.preferredCountriesToSee = preferredCountriesToSee;
+  }
+
+  const updated = db.updateUser(user.id, updates);
+  return res.json({ success: true, user: updated });
+});
+
+// Dedicated country settings route
+apiRouter.put('/user/countries', (req: Request, res: Response) => {
+  const user = getAuthenticatedUser(req);
+  if (!user) return res.status(401).json({ error: 'No autorizado' });
+
+  const { excludedCountriesFromSeeingMe, excludedCountriesToSee, preferredCountriesToSee } = req.body;
+  const updates: Partial<User> = {};
+
+  if (Array.isArray(excludedCountriesFromSeeingMe)) {
+    updates.excludedCountriesFromSeeingMe = excludedCountriesFromSeeingMe;
+  }
+  if (Array.isArray(excludedCountriesToSee)) {
+    updates.excludedCountriesToSee = excludedCountriesToSee;
+  }
+  if (Array.isArray(preferredCountriesToSee)) {
+    updates.preferredCountriesToSee = preferredCountriesToSee;
   }
 
   const updated = db.updateUser(user.id, updates);

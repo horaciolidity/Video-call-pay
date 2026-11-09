@@ -156,7 +156,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ initialTab = 'login', onCl
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <h3 className="text-xl font-extrabold text-white">Bienvenido de nuevo</h3>
-              <p className="text-xs text-slate-400 mt-0.5">Ingresa a tu cuenta de GóndolaLive</p>
+              <p className="text-xs text-slate-400 mt-0.5">Ingresa a tu cuenta de Love Call</p>
             </div>
 
             <div className="space-y-3 text-xs">
@@ -346,7 +346,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ initialTab = 'login', onCl
                 className="accent-indigo-500 mt-0.5 rounded"
               />
               <span>
-                Confirmo que soy mayor de 18 años y acepto las políticas de privacidad y términos de servicio de GóndolaLive.
+                Confirmo que soy mayor de 18 años y acepto las políticas de privacidad y términos de servicio de Love Call.
               </span>
             </label>
 

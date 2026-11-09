@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
-import { NotificationItem } from '../types';
+import { NotificationItem, EnrichedProvider } from '../types';
 import {
   Video,
   Wallet,
@@ -18,7 +18,17 @@ import {
   X,
   Layers,
   Settings,
-  AlertCircle
+  AlertCircle,
+  Search,
+  Flame,
+  Star,
+  Radio,
+  Tag,
+  ArrowRight,
+  TrendingUp,
+  MapPin,
+  Compass,
+  Heart
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -30,7 +40,58 @@ interface NavbarProps {
   onReturnToCall?: () => void;
   searchTerm: string;
   setSearchTerm: (s: string) => void;
+  onSelectProvider?: (providerId: string) => void;
+  onStartTour?: () => void;
 }
+
+interface SuggestionPreset {
+  id: string;
+  label: string;
+  badge: string;
+  icon: React.ComponentType<{ className?: string }>;
+  color: string;
+  filterType: 'preset' | 'sort' | 'status';
+  query: string;
+}
+
+const PRESET_SUGGESTIONS: SuggestionPreset[] = [
+  {
+    id: 'popular',
+    label: 'Popular',
+    badge: 'Alta Demanda',
+    icon: Flame,
+    color: 'from-amber-500/20 to-orange-500/20 text-amber-400 border-amber-500/30',
+    filterType: 'preset',
+    query: 'popular',
+  },
+  {
+    id: 'new',
+    label: 'New',
+    badge: 'Recientes',
+    icon: Sparkles,
+    color: 'from-sky-500/20 to-indigo-500/20 text-sky-400 border-sky-500/30',
+    filterType: 'preset',
+    query: 'new',
+  },
+  {
+    id: 'highest_rated',
+    label: 'Highest Rated',
+    badge: 'Top 5.0 ⭐',
+    icon: Star,
+    color: 'from-yellow-500/20 to-amber-500/20 text-yellow-300 border-yellow-500/30',
+    filterType: 'sort',
+    query: 'rating',
+  },
+  {
+    id: 'online_now',
+    label: 'Online Ahora',
+    badge: 'En Vivo',
+    icon: Radio,
+    color: 'from-emerald-500/20 to-teal-500/20 text-emerald-400 border-emerald-500/30',
+    filterType: 'status',
+    query: 'disponible',
+  },
+];
 
 export const Navbar: React.FC<NavbarProps> = ({
   onOpenWallet,
@@ -41,6 +102,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onReturnToCall,
   searchTerm,
   setSearchTerm,
+  onSelectProvider,
+  onStartTour,
 }) => {
   const { user, isAuthenticated, logout, quickSwitchAccount } = useAuth();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -49,11 +112,35 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [showSwitchMenu, setShowSwitchMenu] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  // Real-time Search & Suggestion States
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isInputFocused, setIsInputFocused] = useState(false);
+  const [providers, setProviders] = useState<EnrichedProvider[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (user) {
       loadNotifications();
     }
   }, [user]);
+
+  // Load providers and categories for instant client-side suggestion matching
+  useEffect(() => {
+    api.getProviders().then((res) => setProviders(res.providers)).catch(() => {});
+    api.getCategories().then((res) => setCategories(res.categories)).catch(() => {});
+  }, []);
+
+  // Click outside listener to dismiss suggestions dropdown
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
+        setIsInputFocused(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const loadNotifications = async () => {
     try {
@@ -81,19 +168,78 @@ export const Navbar: React.FC<NavbarProps> = ({
     setShowUserMenu(false);
   };
 
+  // Real-time search query matching
+  const cleanTerm = (searchTerm || '').trim().toLowerCase();
+
+  // 1. Filtered presets ('Popular', 'New', 'Highest Rated', etc.)
+  const matchingPresets = PRESET_SUGGESTIONS.filter(
+    p => !cleanTerm || p.label.toLowerCase().includes(cleanTerm) || p.badge.toLowerCase().includes(cleanTerm)
+  );
+
+  // 2. Filtered categories (e.g. 'Fitness & Nutrición', 'Consultoría')
+  const matchingCategories = categories.filter(
+    cat => !cleanTerm || cat.toLowerCase().includes(cleanTerm)
+  );
+
+  // 3. Filtered providers in real-time
+  const matchingProviders = providers.filter(p => {
+    if (!cleanTerm) return p.isFeatured || p.status === 'disponible';
+    return (
+      p.name.toLowerCase().includes(cleanTerm) ||
+      p.alias.toLowerCase().includes(cleanTerm) ||
+      p.bio.toLowerCase().includes(cleanTerm) ||
+      p.categories.some(c => c.toLowerCase().includes(cleanTerm)) ||
+      p.country.toLowerCase().includes(cleanTerm)
+    );
+  }).slice(0, 5);
+
+  const handleSelectPreset = (preset: SuggestionPreset) => {
+    setSearchTerm(preset.label);
+    setIsInputFocused(false);
+    setIsSearchOpen(false);
+    if (currentView !== 'marketplace') {
+      onNavigate('marketplace');
+    }
+  };
+
+  const handleSelectCategory = (cat: string) => {
+    setSearchTerm(cat);
+    setIsInputFocused(false);
+    setIsSearchOpen(false);
+    if (currentView !== 'marketplace') {
+      onNavigate('marketplace');
+    }
+  };
+
+  const handleSelectProviderItem = (providerId: string) => {
+    setIsInputFocused(false);
+    setIsSearchOpen(false);
+    if (onSelectProvider) {
+      onSelectProvider(providerId);
+    } else {
+      if (currentView !== 'marketplace') {
+        onNavigate('marketplace');
+      }
+    }
+  };
+
+  const handleClearSearch = () => {
+    setSearchTerm('');
+  };
+
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-slate-800 bg-slate-950/80 backdrop-blur-md">
+    <header className="sticky top-0 z-40 w-full border-b border-slate-800 bg-slate-950/85 backdrop-blur-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 gap-3">
           
           {/* Logo & Brand */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 shrink-0">
             <button
               onClick={() => onNavigate('marketplace')}
               className="flex items-center gap-2.5 text-left group focus:outline-none"
             >
-              <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-rose-500 text-white shadow-lg shadow-indigo-500/25 transition-transform group-hover:scale-105">
-                <Video className="w-5 h-5 text-white" />
+              <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-tr from-rose-600 via-pink-500 to-indigo-600 text-white shadow-lg shadow-rose-500/30 transition-transform group-hover:scale-105">
+                <Heart className="w-5 h-5 text-white fill-white/20" />
                 <span className="absolute -top-1 -right-1 flex h-3 w-3">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
@@ -101,16 +247,16 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
               <div>
                 <span className="font-extrabold text-xl tracking-tight text-white flex items-center gap-1">
-                  Góndola<span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-rose-400">Live</span>
+                  Love<span className="text-transparent bg-clip-text bg-gradient-to-r from-rose-400 to-pink-400">Call</span>
                 </span>
                 <span className="hidden sm:block text-[10px] text-slate-400 font-medium tracking-wider uppercase">
-                  Marketplace & Videollamadas
+                  Videollamadas 1 a 1
                 </span>
               </div>
             </button>
 
             {/* View Selector Tabs */}
-            <nav className="hidden md:flex items-center ml-6 gap-1 bg-slate-900/90 p-1 rounded-xl border border-slate-800/80">
+            <nav className="hidden lg:flex items-center ml-4 gap-1 bg-slate-900/90 p-1 rounded-xl border border-slate-800/80">
               <button
                 onClick={() => onNavigate('marketplace')}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
@@ -120,7 +266,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 }`}
               >
                 <Layers className="w-3.5 h-3.5" />
-                Góndola de Perfiles
+                Góndola
               </button>
 
               {user && (
@@ -133,7 +279,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   }`}
                 >
                   <UserIcon className="w-3.5 h-3.5" />
-                  Mi Escaparate & Panel
+                  Mi Panel
                 </button>
               )}
 
@@ -147,26 +293,205 @@ export const Navbar: React.FC<NavbarProps> = ({
                   }`}
                 >
                   <ShieldCheck className="w-3.5 h-3.5" />
-                  SuperAdmin
+                  Admin
                 </button>
               )}
             </nav>
+          </div>
+
+          {/* REAL-TIME SEARCH BAR WITH SUGGESTIONS & PRESETS (Desktop & Tablet) */}
+          <div ref={searchContainerRef} className="relative flex-1 max-w-md hidden md:block mx-2">
+            <div className="relative">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Buscar prestadores, 'Popular', 'New'..."
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setIsInputFocused(true);
+                  if (currentView !== 'marketplace') {
+                    onNavigate('marketplace');
+                  }
+                }}
+                onFocus={() => setIsInputFocused(true)}
+                className="w-full pl-10 pr-9 py-2 rounded-2xl bg-slate-900/90 border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/40 transition-all shadow-inner"
+              />
+              {searchTerm && (
+                <button
+                  onClick={handleClearSearch}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-0.5 rounded-full hover:bg-slate-800"
+                  title="Limpiar búsqueda"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* REAL-TIME SUGGESTIONS POPOVER */}
+            {isInputFocused && (
+              <div className="absolute left-0 right-0 mt-2 rounded-2xl bg-slate-900/98 border border-slate-800 shadow-2xl backdrop-blur-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150 divide-y divide-slate-800/70">
+                
+                {/* 1. Categorías Rápidas / Presets (Popular, New, Highest Rated, Online) */}
+                <div className="p-3 bg-slate-950/60">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Sparkles className="w-3 h-3 text-indigo-400" />
+                      Sugerencias Rápidas
+                    </span>
+                    <span className="text-[9px] text-slate-500 font-normal">Filtro instantáneo</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {matchingPresets.map((preset) => {
+                      const Icon = preset.icon;
+                      return (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onMouseDown={() => handleSelectPreset(preset)}
+                          className={`flex items-center justify-between p-2 rounded-xl border text-left transition-all hover:scale-[1.02] bg-gradient-to-r ${preset.color}`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <Icon className="w-4 h-4 shrink-0" />
+                            <span className="font-bold text-xs">{preset.label}</span>
+                          </div>
+                          <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-slate-950/60 font-semibold opacity-90">
+                            {preset.badge}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 2. Categorías Relacionadas */}
+                {matchingCategories.length > 0 && (
+                  <div className="p-3">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                      <Tag className="w-3 h-3 text-emerald-400" />
+                      <span>Categorías {cleanTerm ? 'Coincidentes' : 'Populares'}</span>
+                    </div>
+
+                    <div className="flex flex-wrap gap-1.5">
+                      {matchingCategories.slice(0, 5).map((cat) => (
+                        <button
+                          key={cat}
+                          type="button"
+                          onMouseDown={() => handleSelectCategory(cat)}
+                          className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-[11px] text-slate-300 hover:text-white hover:border-indigo-500/50 hover:bg-indigo-950/30 transition-all font-medium"
+                        >
+                          #{cat}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. Prestadores Coincidentes en Tiempo Real */}
+                <div className="p-3">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <UserIcon className="w-3 h-3 text-indigo-400" />
+                      Prestadores {cleanTerm ? 'Encontrados' : 'Destacados'}
+                    </span>
+                    <span className="text-[9px] text-slate-500 font-normal">
+                      {matchingProviders.length} perfiles
+                    </span>
+                  </div>
+
+                  {matchingProviders.length === 0 ? (
+                    <div className="py-3 text-center text-xs text-slate-400">
+                      No hay prestadores que coincidan con &ldquo;{searchTerm}&rdquo;
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      {matchingProviders.map((p) => {
+                        const isOnline = p.status === 'disponible';
+                        return (
+                          <div
+                            key={p.id}
+                            onMouseDown={() => handleSelectProviderItem(p.id)}
+                            className="flex items-center justify-between p-2 rounded-xl hover:bg-slate-800/70 cursor-pointer transition-colors group"
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="relative shrink-0">
+                                <img
+                                  src={p.avatar}
+                                  alt={p.name}
+                                  className="w-8 h-8 rounded-lg object-cover ring-1 ring-slate-700"
+                                />
+                                <span
+                                  className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-2 ring-slate-900 ${
+                                    isOnline ? 'bg-emerald-400' : 'bg-slate-500'
+                                  }`}
+                                />
+                              </div>
+
+                              <div className="min-w-0">
+                                <div className="text-xs font-bold text-white group-hover:text-indigo-400 flex items-center gap-1 truncate">
+                                  <span>{p.alias || p.name}</span>
+                                  {p.isVerifiedBadge && (
+                                    <CheckCircle2 className="w-3 h-3 text-sky-400 shrink-0" />
+                                  )}
+                                </div>
+                                <div className="text-[10px] text-slate-400 truncate flex items-center gap-1.5">
+                                  <span>{p.categories[0] || 'Prestador'}</span>
+                                  <span>•</span>
+                                  <span>{p.country}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="text-right shrink-0 pl-2">
+                              <div className="text-xs font-mono font-bold text-emerald-400">
+                                ${p.tariff?.pricePerMin?.toFixed(2)}
+                                <span className="text-[9px] text-slate-400 ml-0.5 font-normal">/m</span>
+                              </div>
+                              <span className="text-[9px] text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-end gap-0.5">
+                                <span>Ver</span>
+                                <ArrowRight className="w-2.5 h-2.5" />
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Footer hint */}
+                <div className="px-3 py-2 bg-slate-950/80 flex items-center justify-between text-[10px] text-slate-500">
+                  <span>Presiona un resultado para abrir su escaparate</span>
+                  <span className="font-mono">ESC para cerrar</span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Quick Active Call Floating Pill */}
           {activeCallId && (
             <button
               onClick={onReturnToCall}
-              className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 text-xs font-medium animate-pulse hover:bg-emerald-500/30 transition-colors"
+              className="hidden xl:flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 text-xs font-medium animate-pulse hover:bg-emerald-500/30 transition-colors"
             >
               <span className="w-2 h-2 rounded-full bg-emerald-400" />
-              Llamada en Curso (Volver)
+              Llamada en Curso
             </button>
           )}
 
           {/* Right Action Controls */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-2 sm:gap-2.5">
             
+            {/* Mobile Search Toggle Icon */}
+            <button
+              onClick={() => setIsSearchOpen(!isSearchOpen)}
+              className="md:hidden p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/70 transition-colors"
+              title="Buscar"
+            >
+              <Search className="w-5 h-5" />
+            </button>
+
             {/* Quick Account Switcher (For seamless testing between Client, Providers & SuperAdmin) */}
             <div className="relative">
               <button
@@ -366,7 +691,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       className="w-full px-4 py-2.5 text-left hover:bg-slate-800/70 flex items-center gap-2.5 text-slate-200"
                     >
                       <UserIcon className="w-4 h-4 text-indigo-400" />
-                      <span>Mi Escaparate & Perfil</span>
+                      <span>Mi Escaparate & Panel</span>
                     </button>
 
                     <button
@@ -390,6 +715,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                       >
                         <ShieldCheck className="w-4 h-4 text-rose-400" />
                         <span>Panel SuperAdmin</span>
+                      </button>
+                    )}
+
+                    {onStartTour && (
+                      <button
+                        onClick={() => {
+                          setShowUserMenu(false);
+                          onStartTour();
+                        }}
+                        className="w-full px-4 py-2.5 text-left hover:bg-slate-800/70 flex items-center gap-2.5 text-indigo-300 hover:text-white"
+                      >
+                        <Compass className="w-4 h-4 text-indigo-400" />
+                        <span>Tour Guiado de Bienvenida</span>
                       </button>
                     )}
 
@@ -434,6 +772,83 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Mobile Search Bar Dropdown (When search icon clicked on mobile) */}
+        {isSearchOpen && (
+          <div className="md:hidden py-3 border-t border-slate-800/80 space-y-3">
+            <div className="relative">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                type="text"
+                autoFocus
+                placeholder="Buscar o filtrar por 'Popular', 'New'..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-9 py-2.5 rounded-2xl bg-slate-900 border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+              />
+              {searchTerm && (
+                <button
+                  onClick={handleClearSearch}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+
+            {/* Mobile Presets */}
+            <div className="grid grid-cols-2 gap-1.5">
+              {matchingPresets.map((preset) => {
+                const Icon = preset.icon;
+                return (
+                  <button
+                    key={preset.id}
+                    onClick={() => handleSelectPreset(preset)}
+                    className={`flex items-center justify-between p-2 rounded-xl border text-xs bg-gradient-to-r ${preset.color}`}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <Icon className="w-3.5 h-3.5" />
+                      <span className="font-bold">{preset.label}</span>
+                    </div>
+                    <span className="text-[9px] px-1 rounded bg-slate-950/60 font-semibold">
+                      {preset.badge}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Mobile Matching Providers */}
+            {matchingProviders.length > 0 && (
+              <div className="space-y-1 pt-1">
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  Prestadores Coincidentes
+                </div>
+                {matchingProviders.map((p) => (
+                  <div
+                    key={p.id}
+                    onClick={() => handleSelectProviderItem(p.id)}
+                    className="flex items-center justify-between p-2 rounded-xl bg-slate-900/60 border border-slate-800/60 text-xs"
+                  >
+                    <div className="flex items-center gap-2">
+                      <img src={p.avatar} alt={p.name} className="w-7 h-7 rounded-lg object-cover" />
+                      <div>
+                        <div className="font-bold text-white flex items-center gap-1">
+                          <span>{p.alias || p.name}</span>
+                          {p.isVerifiedBadge && <CheckCircle2 className="w-3 h-3 text-sky-400" />}
+                        </div>
+                        <div className="text-[10px] text-slate-400">{p.categories[0]}</div>
+                      </div>
+                    </div>
+                    <div className="font-mono font-bold text-emerald-400 text-xs">
+                      ${p.tariff?.pricePerMin?.toFixed(2)}/m
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Mobile Dropdown Menu */}
         {mobileMenuOpen && (

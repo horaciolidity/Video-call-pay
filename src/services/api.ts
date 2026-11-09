@@ -68,6 +68,8 @@ export const api = {
 
   // User Profile & Catalog
   updateProfile: (updates: Partial<User>) => request<{ success: boolean; user: User }>('/api/user/profile', { method: 'PUT', body: JSON.stringify(updates) }),
+  updateCountrySettings: (settings: { excludedCountriesFromSeeingMe?: string[]; excludedCountriesToSee?: string[]; preferredCountriesToSee?: string[] }) =>
+    request<{ success: boolean; user: User }>('/api/user/countries', { method: 'PUT', body: JSON.stringify(settings) }),
   getUserPhotos: () => request<{ photos: Photo[] }>('/api/user/photos'),
   addPhoto: (data: { url: string; caption?: string; isPrivate?: boolean; isPrimary?: boolean }) => request<{ success: boolean; photo: Photo }>('/api/user/photos', { method: 'POST', body: JSON.stringify(data) }),
   reorderPhotos: (photoIds: string[]) => request<{ success: boolean; photos: Photo[] }>('/api/user/photos/reorder', { method: 'PUT', body: JSON.stringify({ photoIds }) }),

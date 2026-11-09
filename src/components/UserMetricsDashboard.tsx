@@ -28,12 +28,14 @@ interface UserMetricsDashboardProps {
   calls: CallRequest[];
   user: User | null;
   onOpenWallet?: () => void;
+  onViewCallHistory?: () => void;
 }
 
 export const UserMetricsDashboard: React.FC<UserMetricsDashboardProps> = ({
   calls,
   user,
   onOpenWallet,
+  onViewCallHistory,
 }) => {
   const [chartMetric, setChartMetric] = useState<'both' | 'earnings' | 'minutes'>('both');
 
@@ -273,9 +275,20 @@ export const UserMetricsDashboard: React.FC<UserMetricsDashboardProps> = ({
 
           <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-800/80">
             <span>Conexión 1 a 1:</span>
-            <span className="font-bold text-purple-300 flex items-center gap-1">
-              <ShieldCheck className="w-3 h-3 text-emerald-400" /> WebRTC HD
-            </span>
+            {onViewCallHistory ? (
+              <button
+                type="button"
+                onClick={onViewCallHistory}
+                className="font-bold text-purple-300 hover:text-white flex items-center gap-1 transition-colors"
+              >
+                <span>Ver Historial</span>
+                <ArrowUpRight className="w-3 h-3 text-purple-400" />
+              </button>
+            ) : (
+              <span className="font-bold text-purple-300 flex items-center gap-1">
+                <ShieldCheck className="w-3 h-3 text-emerald-400" /> WebRTC HD
+              </span>
+            )}
           </div>
         </div>
 
@@ -448,6 +461,34 @@ export const UserMetricsDashboard: React.FC<UserMetricsDashboardProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Quick Call History Discovery Banner */}
+      {onViewCallHistory && (
+        <div className="p-5 rounded-3xl bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0">
+              <Video className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-white">
+                Registro y Comprobantes de Cada Videollamada
+              </h4>
+              <p className="text-xs text-slate-400">
+                Consulta la duración exacta en segundos, los costos reales incurridos y descarga los recibos oficiales.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onViewCallHistory}
+            className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-bold text-white flex items-center gap-2 transition-all shadow-md shadow-indigo-600/20 shrink-0"
+          >
+            <span>Ver Historial Detallado</span>
+            <ArrowUpRight className="w-4 h-4" />
+          </button>
+        </div>
+      )}
     </div>
   );
 };

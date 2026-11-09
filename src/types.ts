@@ -21,6 +21,9 @@ export interface User {
   walletBalance: number;
   rating: number;
   reviewsCount: number;
+  excludedCountriesFromSeeingMe?: string[]; // Países que NO pueden ver este perfil (geobloqueo de salida)
+  excludedCountriesToSee?: string[]; // Países que el usuario NO desea ver en su góndola
+  preferredCountriesToSee?: string[]; // Países específicos que el usuario prefiere ver
   createdAt: string;
   updatedAt: string;
 }

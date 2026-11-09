@@ -23,16 +23,19 @@ import {
   Globe,
   Sliders,
   BarChart3,
-  TrendingUp
+  TrendingUp,
+  ArrowRight
 } from 'lucide-react';
 import { UserMetricsDashboard } from './UserMetricsDashboard';
+import { CallHistorySection } from './CallHistorySection';
 
 interface UserDashboardProps {
   onOpenWallet: () => void;
   onNavigateHome: () => void;
+  onSelectProvider?: (providerId: string) => void;
 }
 
-export const UserDashboard: React.FC<UserDashboardProps> = ({ onOpenWallet, onNavigateHome }) => {
+export const UserDashboard: React.FC<UserDashboardProps> = ({ onOpenWallet, onNavigateHome, onSelectProvider }) => {
   const { user, refreshUser } = useAuth();
   const [activeTab, setActiveTab] = useState<'metrics' | 'profile' | 'catalog' | 'tariffs' | 'calls'>('metrics');
 
@@ -267,42 +270,44 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ onOpenWallet, onNa
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-28 space-y-6">
       
-      {/* Dashboard Top Banner */}
-      <div className="p-6 rounded-3xl bg-gradient-to-r from-slate-900 via-indigo-950/60 to-slate-900 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
+      {/* Dashboard Top Banner - Compact & Clean */}
+      <div className="p-4 sm:p-5 rounded-2xl bg-slate-900/90 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
           <img
             src={user?.avatar}
             alt={user?.name}
-            className="w-16 h-16 rounded-2xl object-cover ring-2 ring-indigo-500/50 shadow-md"
+            className="w-12 h-12 rounded-xl object-cover ring-2 ring-indigo-500/40 shadow-md"
           />
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl sm:text-2xl font-extrabold text-white">
+              <h1 className="text-lg sm:text-xl font-extrabold text-white">
                 {user?.alias || user?.name}
               </h1>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 capitalize">
                 {user?.role}
               </span>
             </div>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Administración de tu escaparate, catálogo y tarifas de videollamadas
+            <p className="text-xs text-slate-400">
+              {user?.email} • Saldo: <strong className="text-emerald-400 font-mono">${user?.walletBalance.toFixed(2)} USD</strong>
             </p>
           </div>
         </div>
 
-        {/* Quick Wallet CTA */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onOpenWallet}
-            className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200 flex items-center gap-1.5 transition-colors border border-slate-700/60"
-          >
-            <span>Saldo: ${user?.walletBalance.toFixed(2)} USD</span>
-          </button>
+        {/* Quick Actions */}
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           <button
             onClick={onNavigateHome}
-            className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-bold text-white transition-colors"
+            className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-xs font-bold text-white transition-all shadow-md flex items-center justify-center gap-1.5"
           >
-            Ver en Góndola
+            <span>Explorar Góndola</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={onOpenWallet}
+            className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200 flex items-center gap-1.5 transition-colors border border-slate-700/60"
+          >
+            <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Billetera</span>
           </button>
         </div>
       </div>
@@ -373,7 +378,12 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ onOpenWallet, onNa
 
       {/* TAB 0: RENDIMIENTO & MÉTRICAS (RECHARTS) */}
       {activeTab === 'metrics' && (
-        <UserMetricsDashboard calls={calls} user={user} onOpenWallet={onOpenWallet} />
+        <UserMetricsDashboard
+          calls={calls}
+          user={user}
+          onOpenWallet={onOpenWallet}
+          onViewCallHistory={() => setActiveTab('calls')}
+        />
       )}
 
       {/* TAB 1: MI ESCAPARATE / PERFIL */}
@@ -838,75 +848,27 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ onOpenWallet, onNa
         </form>
       )}
 
-      {/* TAB 4: HISTORIAL DE VIDEOLLAMADAS */}
+      {/* TAB 4: HISTORIAL DE VIDEOLLAMADAS DETALLADO */}
       {activeTab === 'calls' && (
-        <div className="p-6 rounded-3xl bg-slate-900/90 border border-slate-800 space-y-4">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
-            <Video className="w-4 h-4 text-indigo-400" />
-            <span>Registro Completo de Videollamadas Realizadas</span>
-          </h3>
-
-          {isLoadingCalls ? (
-            <div className="text-center py-10 text-xs text-slate-400">Cargando sesiones...</div>
-          ) : calls.length === 0 ? (
-            <div className="text-center py-10 text-xs text-slate-400">
-              No tienes llamadas registradas en tu historial.
+        <div className="space-y-4">
+          <div className="flex items-center justify-between pb-1">
+            <div>
+              <h2 className="text-lg font-extrabold text-white flex items-center gap-2">
+                <Video className="w-5 h-5 text-indigo-400" />
+                <span>Historial Detallado de Videollamadas y Costos</span>
+              </h2>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Auditoría completa de sesiones pasadas, duración real conectada por segundo y costos incurridos.
+              </p>
             </div>
-          ) : (
-            <div className="divide-y divide-slate-800">
-              {calls.map((c) => {
-                const isProviderOfCall = user?.id === c.providerId;
-                const otherPartyName = isProviderOfCall ? c.clientName : c.providerName;
-                const otherPartyAvatar = isProviderOfCall ? c.clientAvatar : c.providerAvatar;
+          </div>
 
-                return (
-                  <div key={c.id} className="py-3.5 flex items-center justify-between gap-3 text-xs">
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={otherPartyAvatar}
-                        alt={otherPartyName}
-                        className="w-10 h-10 rounded-xl object-cover ring-1 ring-slate-700"
-                      />
-                      <div>
-                        <div className="font-bold text-white flex items-center gap-2">
-                          <span>{otherPartyName}</span>
-                          <span
-                            className={`px-2 py-0.2 rounded text-[10px] font-bold ${
-                              c.status === 'completed'
-                                ? 'bg-emerald-950 text-emerald-300'
-                                : c.status === 'in_progress'
-                                ? 'bg-indigo-950 text-indigo-300'
-                                : 'bg-slate-800 text-slate-400'
-                            }`}
-                          >
-                            {c.status}
-                          </span>
-                        </div>
-                        <div className="text-[11px] text-slate-400">
-                          {c.durationMinutes} min contratados •{' '}
-                          {new Date(c.createdAt).toLocaleDateString([], {
-                            day: '2-digit',
-                            month: 'short',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="text-right">
-                      <div className="font-mono font-bold text-sm text-emerald-400">
-                        {isProviderOfCall ? `+$${c.providerAmount.toFixed(2)}` : `-$${c.totalAmount.toFixed(2)}`} USD
-                      </div>
-                      <div className="text-[10px] text-slate-500">
-                        Consumo: {Math.round(c.actualSecondsUsed / 60)} min
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          <CallHistorySection
+            calls={calls}
+            currentUser={user}
+            onSelectProvider={onSelectProvider}
+            onOpenWallet={onOpenWallet}
+          />
         </div>
       )}
     </div>

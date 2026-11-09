@@ -10,6 +10,7 @@ import { WalletModal } from './components/WalletModal';
 import { UserDashboard } from './components/UserDashboard';
 import { SuperAdminPanel } from './components/SuperAdminPanel';
 import { AuthModal } from './components/AuthModal';
+import { OnboardingTour } from './components/OnboardingTour';
 import { CallRequest, EnrichedProvider } from './types';
 import { api } from './services/api';
 import { wsClient } from './services/websocket';
@@ -25,6 +26,7 @@ function MainApp() {
   const [isWalletOpen, setIsWalletOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [authTab, setAuthTab] = useState<'login' | 'register'>('login');
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
 
   // Active Videocall State
   const [activeCall, setActiveCall] = useState<CallRequest | null>(null);
@@ -32,6 +34,14 @@ function MainApp() {
 
   // Search Filter in Navbar
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Onboarding tour is available on-demand via Navbar / Hero buttons without interrupting login
+  const handleCloseTour = () => {
+    setIsOnboardingOpen(false);
+    if (user) {
+      localStorage.setItem(`gondola_tour_completed_${user.id}`, 'true');
+    }
+  };
 
   // Check for existing active call on mount or session change
   useEffect(() => {
@@ -143,6 +153,8 @@ function MainApp() {
         onReturnToCall={() => {}}
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
+        onSelectProvider={(id) => setSelectedProviderId(id)}
+        onStartTour={() => setIsOnboardingOpen(true)}
       />
 
       {/* Main Views Container */}
@@ -153,6 +165,7 @@ function MainApp() {
             onDirectCall={handleDirectCall}
             searchTerm={searchTerm}
             setSearchTerm={setSearchTerm}
+            onStartTour={() => setIsOnboardingOpen(true)}
           />
         )}
 
@@ -160,6 +173,7 @@ function MainApp() {
           <UserDashboard
             onOpenWallet={() => setIsWalletOpen(true)}
             onNavigateHome={() => setCurrentView('marketplace')}
+            onSelectProvider={(id) => setSelectedProviderId(id)}
           />
         )}
 
@@ -225,6 +239,15 @@ function MainApp() {
           onClose={() => setIsAuthOpen(false)}
         />
       )}
+
+      {/* Modal: User-friendly Onboarding Tour */}
+      <OnboardingTour
+        isOpen={isOnboardingOpen}
+        onClose={handleCloseTour}
+        onNavigate={(view) => setCurrentView(view)}
+        onOpenWallet={() => setIsWalletOpen(true)}
+        userName={user?.alias || user?.name}
+      />
     </div>
   );
 }
