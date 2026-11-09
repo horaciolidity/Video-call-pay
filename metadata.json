@@ -1,0 +1,6 @@
+{
+  "name": "GóndolaLive - Marketplace de Perfiles & Videollamadas Pagas",
+  "description": "Plataforma marketplace tipo góndola de usuarios con catálogos fotográficos, videollamadas pagadas en tiempo real por WebRTC, billetera integrada y panel SuperAdmin.",
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
